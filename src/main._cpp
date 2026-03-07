@@ -1,0 +1,304 @@
+// Electron Optics Scene-Based Simulator
+// Precompute trajectories, then render static scene
+
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
+#include <vector>
+#include <random>
+#include <iostream>
+#include <cmath>
+#include <spdlog/spdlog.h>
+
+#include "renderer.hpp"
+#include "simulator.hpp"
+#include "model.hpp"
+#include "clickRayCaster.hpp"
+
+////////////////////////////////////////////////////////////
+// ---------------- CONFIGURATION ------------------------
+////////////////////////////////////////////////////////////
+
+constexpr int   NUM_ELECTRONS = 10;
+constexpr float GUN_ENERGY    = 5.0f;
+constexpr float SIM_TIME      = 5.0f;
+constexpr float DT            = 0.0005f;
+
+
+
+float yaw=0, pitch=0, dist=5;
+
+
+////////////////////////////////////////////////////////////
+// ------------------- MAIN ------------------------------
+////////////////////////////////////////////////////////////
+
+static void glfwResizeCallback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
+}
+
+bool leftMousePressed = false;
+bool rightMousePressed = false;
+glm::vec2 lastMousePosLeft(0,0);
+glm::vec2 lastMousePosRight(0,0);
+
+
+glm::vec3 camerPos(-dist,0,0);
+glm::vec3 camForward(1,0,0);
+
+
+bool gizmoVisible = false;
+size_t currentlySelectedModelIndex = -1;
+glm::vec3 gizmoSelectedDirection(0,0,0);
+
+
+static void glfwMousePressCallback(GLFWwindow* window, int button, int action, int mods);
+
+std::vector<ElectronOptics::ModelRenderInfo> models;
+ElectronOptics::Model coneModel;
+ElectronOptics::Model torusModel;
+ElectronOptics::Model arrowModel;
+
+int main() {
+    ElectronOptics::Simulator simulator{DT, SIM_TIME, NUM_ELECTRONS};
+    ElectronOptics::ElectronSource source {
+        .centerPosition = glm::vec3(0,1,0),
+        .direction = glm::vec3(0,-1,0),
+        .energy = GUN_ENERGY,
+        .positionSpread = 0.0001f,
+        .beamRadius = 0.1f,
+        .energySpread = 0.1f
+    };
+    simulator.addSource(source);
+
+    ElectronOptics::VerticalLens lens1 {
+        .position = glm::vec3(0,0,0),
+        .strength = 100.0f,
+        .width = 0.2f
+    };
+    simulator.addLens(lens1);
+
+    ElectronOptics::VerticalLens lens2 {
+        .position = glm::vec3(0,-3,0),
+        .strength = -100.0f,
+        .width = 0.2f
+    };
+    simulator.addLens(lens2);
+
+    auto trajectories = simulator.simulate();
+    std::cout << "Simulation complete.\n";
+
+    glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    GLFWwindow* window = glfwCreateWindow(1280,720,"Electron Optics Scene",NULL,NULL);
+    glfwMakeContextCurrent(window);
+    glfwSetWindowSizeCallback(window, glfwResizeCallback);
+    glfwSetMouseButtonCallback(window, glfwMousePressCallback);
+
+    ElectronOptics::Renderer renderer;
+    coneModel = ElectronOptics::Model("assets/cone.obj");
+    torusModel = ElectronOptics::Model("assets/torus.obj");
+    arrowModel = ElectronOptics::Model("assets/arrow.obj");
+
+
+    glm::mat4 coneModelMatrix = glm::translate(glm::mat4(1.0f), source.centerPosition) * glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(1,0,0));
+    models.emplace_back(ElectronOptics::ModelRenderInfo{coneModel, source.centerPosition, coneModelMatrix, glm::vec3(0.5f, 0.65f, 0.89f)});
+
+    glm::mat4 lens1ModelMatrix = glm::translate(glm::mat4(1.0f), lens1.position);
+    models.emplace_back(ElectronOptics::ModelRenderInfo{torusModel, lens1.position, lens1ModelMatrix, glm::vec3(0.8f, 0.3f, 0.3f)});
+    glm::mat4 lens2ModelMatrix = glm::translate(glm::mat4(1.0f), lens2.position);
+    models.emplace_back(ElectronOptics::ModelRenderInfo{torusModel, lens2.position, lens2ModelMatrix, glm::vec3(0.8f, 0.3f, 0.3f)});
+    
+
+    float last = glfwGetTime();
+
+    renderer.updateRays(trajectories);
+
+    while(!(glfwWindowShouldClose(window) || glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)) {
+
+
+        float now = glfwGetTime();
+        float delta = now - last;
+        last = now;
+
+        double x, y;
+        glfwGetCursorPos(window, &x, &y);
+        glm::vec2 mousePos(x, y);
+        glm::vec2 deltaPosLeft = mousePos - lastMousePosLeft;
+        lastMousePosLeft = mousePos;
+        glm::vec2 deltaPosRight = mousePos - lastMousePosRight;
+        lastMousePosRight = mousePos;
+        
+        if (rightMousePressed) {
+            yaw += deltaPosRight.x * 0.1f;
+            pitch -= deltaPosRight.y * 0.1f;
+        }
+
+
+        pitch = glm::clamp(pitch, -89.0f, 89.0f);
+
+        camForward.x = std::cos(glm::radians(yaw)) * std::cos(glm::radians(pitch));
+        camForward.y = std::sin(glm::radians(pitch));
+        camForward.z = std::sin(glm::radians(yaw)) * std::cos(glm::radians(pitch));
+
+        glm::vec3 camRight = glm::normalize(glm::cross(camForward, glm::vec3(0,1,0)));
+
+        if (rightMousePressed) {
+            if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+                camerPos += camForward * delta * 5.0f;
+            }
+            if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+                camerPos -= camForward * delta * 5.0f;
+            }
+
+            if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+                camerPos -= camRight * delta * 5.0f;
+            }
+            if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+                camerPos += camRight * delta * 5.0f;
+            }
+
+            if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+                camerPos.y += delta * 5.0f;
+            }
+            if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+                camerPos.y -= delta * 5.0f;
+            }
+        }
+
+
+        if (leftMousePressed && gizmoVisible && gizmoSelectedDirection != glm::vec3(0,0,0)) {
+
+            glm::ivec4 viewport;
+            glGetIntegerv(GL_VIEWPORT, &viewport[0]);
+
+            glm::vec2 screenSize(viewport.z, viewport.w);
+
+
+            auto toScreenSpace = [&](const glm::vec3& worldPos) {
+                glm::mat4 view = glm::lookAt(camerPos, camerPos + camForward, glm::vec3(0,1,0));
+                glm::mat4 projection = glm::perspective(glm::radians(45.0f), static_cast<float>(viewport.z) / static_cast<float>(viewport.w), 0.1f, 100.0f);
+                glm::vec4 clipSpacePos = projection * view * glm::vec4(worldPos, 1.0f);
+                clipSpacePos /= clipSpacePos.w;
+                return clipSpacePos;
+            };
+            glm::vec2 clipSpaceMouseDelta = deltaPosLeft / screenSize * glm::vec2(1, -1);
+            auto originScreenPos = toScreenSpace(models[currentlySelectedModelIndex].position);
+            auto axisScreenPos = toScreenSpace(models[currentlySelectedModelIndex].position + gizmoSelectedDirection);
+            glm::vec2 axisDir = glm::normalize(axisScreenPos - originScreenPos);
+            float movementAlongAxis = glm::dot(clipSpaceMouseDelta, axisDir);
+            glm::vec3 deltaPos = gizmoSelectedDirection * movementAlongAxis * 2.0f;
+            models[currentlySelectedModelIndex].modelMatrix = glm::translate(glm::mat4(1.0f), -models[currentlySelectedModelIndex].position) * models[currentlySelectedModelIndex].modelMatrix;
+            models[currentlySelectedModelIndex].position += deltaPos;
+            models[currentlySelectedModelIndex].modelMatrix = glm::translate(glm::mat4(1.0f), models[currentlySelectedModelIndex].position) * models[currentlySelectedModelIndex].modelMatrix;
+            
+            switch (currentlySelectedModelIndex) {
+                case 0:{
+                    source.centerPosition = models[0].position;
+                    simulator.updateSource(0, source);
+                    break;
+                }
+                case 1:{
+                    lens1.position = models[1].position;
+                    simulator.updateLens(0, lens1);
+                    break;
+                }
+                case 2:{
+                    lens2.position = models[2].position;
+                    simulator.updateLens(1, lens2);
+                    break;
+                }
+
+            }
+
+
+            
+            for (size_t i = models.size() - 3; i < models.size(); ++i) {
+                models[i].modelMatrix = glm::translate(glm::mat4(1.0f), -models[i].position) * models[i].modelMatrix;
+                models[i].position += deltaPos;
+                models[i].modelMatrix = glm::translate(glm::mat4(1.0f), models[i].position) * models[i].modelMatrix;
+            }
+
+            trajectories = simulator.simulate();
+            renderer.updateRays(trajectories);
+
+        }
+
+
+        renderer.render(camerPos, camForward, models);
+
+        glfwPollEvents();
+        glfwSwapBuffers(window);
+    }
+
+    glfwTerminate();
+}
+
+
+void glfwMousePressCallback(GLFWwindow* window, int button, int action, int mods)  {
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (action == GLFW_PRESS) {
+            leftMousePressed = true;
+            double x, y;
+            glfwGetCursorPos(window, &x, &y);
+            lastMousePosLeft = glm::vec2(x, y);
+
+            size_t clickedModelIndex = ElectronOptics::ClickRayCaster::castRay(lastMousePosRight, camerPos, camForward, models, gizmoVisible ? std::vector<ElectronOptics::ModelRenderInfo>({models[currentlySelectedModelIndex]}) : std::vector<ElectronOptics::ModelRenderInfo>{});
+            if(clickedModelIndex < models.size()) {
+                if(gizmoVisible && clickedModelIndex >= models.size() - 3) {
+                    if (clickedModelIndex == models.size() - 3) {
+                        gizmoSelectedDirection = glm::vec3(0,1,0);
+                    } else if (clickedModelIndex == models.size() - 2) {
+                        gizmoSelectedDirection = glm::vec3(0,0,1);
+                    } else {
+                        gizmoSelectedDirection = glm::vec3(1,0,0);
+                    }
+                } else {
+                    currentlySelectedModelIndex = clickedModelIndex;
+                
+                    glm::vec3 arrowPosition = models[clickedModelIndex].position;
+                    glm::mat4 arrow1ModelMatrix = glm::translate(glm::mat4(1.0f), arrowPosition) * glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
+                    glm::mat4 arrow2ModelMatrix = glm::translate(glm::mat4(1.0f), arrowPosition) * glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1,0,0)) * glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
+                    glm::mat4 arrow3ModelMatrix = glm::translate(glm::mat4(1.0f), arrowPosition) * glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0,0,1)) * glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
+                    if (gizmoVisible) {
+                        models.pop_back();
+                        models.pop_back();
+                        models.pop_back();
+                    }
+                    gizmoVisible = true;
+                    models.emplace_back(ElectronOptics::ModelRenderInfo{arrowModel, arrowPosition, arrow1ModelMatrix, glm::vec3(0.2f, 0.2f, 0.8f)});
+                    models.emplace_back(ElectronOptics::ModelRenderInfo{arrowModel, arrowPosition, arrow2ModelMatrix, glm::vec3(0.2f, 0.8f, 0.0f)});
+                    models.emplace_back(ElectronOptics::ModelRenderInfo{arrowModel, arrowPosition, arrow3ModelMatrix, glm::vec3(0.8f, 0.2f, 0.2f)});
+                }
+            } else {
+                if (gizmoVisible) {
+                    models.pop_back();
+                    models.pop_back();
+                    models.pop_back();
+                    gizmoVisible = false;
+                }
+            }
+
+
+        } else {
+            leftMousePressed = false;
+        }
+    }
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        if (action == GLFW_PRESS) {
+            rightMousePressed = true;
+            double x, y;
+            glfwGetCursorPos(window, &x, &y);
+            lastMousePosRight = glm::vec2(x, y);
+
+        } else {
+            rightMousePressed = false;
+        }
+    }
+}
