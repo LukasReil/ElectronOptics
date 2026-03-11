@@ -7,6 +7,8 @@ add_subdirectory(spdlog)
 find_package(OpenMP REQUIRED)
 add_subdirectory(eigen)
 
+add_subdirectory(tetgen)
+
 target_link_libraries(${ENGINE_NAME} PUBLIC 
     glfw
     glad
@@ -15,6 +17,7 @@ target_link_libraries(${ENGINE_NAME} PUBLIC
 
 target_link_libraries(${ENGINE_NAME} PRIVATE
     spdlog
+    tetgen
     eigen
     OpenMP::OpenMP_CXX
 )
