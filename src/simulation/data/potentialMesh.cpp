@@ -12,6 +12,22 @@ double Tetrahedron::getVolume() const {
         / 6.0;
 }
 
+double ElectronOptics::Simulation::Data::Tetrahedron::getPotentialAtPosition(const vec3d &position) const {
+    double potential = 0.0;
+    for (size_t i = 0; i < 4; i++) {
+        potential += m_tentFunctions[i].eval(position) * m_vertices[i].vertex.potential;
+    }
+    return potential;
+}
+
+vec3d ElectronOptics::Simulation::Data::Tetrahedron::getElectricFieldAtPosition(const vec3d &position) const {
+    vec3d electricField(0.0, 0.0, 0.0);
+    for (size_t i = 0; i < 4; i++) {
+        electricField += m_tentFunctions[i].gradient * m_vertices[i].vertex.potential;
+    }
+    return electricField;
+}
+
 static void addElectrodeMeshToTetgenInput(const ElectrodeMesh& electrodeMesh, tetgenio& in, size_t& vertexIndexOffset, size_t& faceIndexOffset, int index) {
     for (size_t i = 0; i < electrodeMesh.getVertexCount(); i++) {
         auto vertex = electrodeMesh.getVertices().at(i);
@@ -67,7 +83,7 @@ PotentialMesh::PotentialMesh(const std::vector<ElectrodeMesh> &electrodeMeshes, 
         addElectrodeMeshToTetgenInput(electrodeMeshes[electrodeIndex], in, vertexIndex, faceIndex, static_cast<int>(electrodeIndex) + 2);
     }
 
-    char switches[] = "pq1.414a0.001";
+    char switches[] = "pq1.2a0.0005";
     spdlog::info("Starting tetrahedralization...");
     tetrahedralize(switches, &in, &out);
     spdlog::info("Finished tetrahedralization: generated {} vertices and {} tetrahedra", out.numberofpoints, out.numberoftetrahedra);
@@ -116,6 +132,11 @@ void ElectronOptics::Simulation::Data::PotentialMesh::applyPotentialsToVertices(
     for (size_t vertexIndex = 0; vertexIndex < m_vertices.size(); vertexIndex++) {
         if (!m_vertices[vertexIndex].potentialIsFixed) {
             m_vertices[vertexIndex].potential = potentials[vertexIndex];
+        } else {
+            // Sanity check: fixed potential should not be changed
+            if (std::abs(m_vertices[vertexIndex].potential - potentials[vertexIndex]) > 1e-6) {
+                spdlog::warn("Potential at vertex {} is fixed at {}, but solver returned a different value of {}", vertexIndex, m_vertices[vertexIndex].potential, potentials[vertexIndex]);
+            }
         }
     }
 }

@@ -4,6 +4,7 @@
 #include <array>
 #include "vec3d.hpp"
 #include "electrodeMesh.hpp"
+#include "linear3d.hpp"
 
 namespace ElectronOptics::Simulation::Data {
 
@@ -29,8 +30,17 @@ namespace ElectronOptics::Simulation::Data {
         }
         
         double getVolume() const;
+
+        void setTentFunctions(const std::array<Linear3d, 4>& tentFunctions) {
+            m_tentFunctions = tentFunctions;
+        }
+
+        double getPotentialAtPosition(const vec3d& position) const;
+        vec3d getElectricFieldAtPosition(const vec3d& position) const;
+
     private:
         std::array<VertexRef, 4> m_vertices;
+        std::array<Linear3d, 4> m_tentFunctions;
     };
 
     class PotentialMesh {

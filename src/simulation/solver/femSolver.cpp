@@ -5,22 +5,12 @@
 #include <vector>
 #include <array>
 #include <spdlog/spdlog.h>
+#include "simulation/data/linear3d.hpp"
 
 using namespace ElectronOptics::Simulation::Solver;
+using Linear3d = ElectronOptics::Simulation::Data::Linear3d;
 
 
-class Linear3d {
-public:
-    // f(x, y, z) = a + b * x + c * y + d * z;
-    Linear3d(double a, double b, double c, double d) : a(a), b(b), c(c), d(d), gradient(b, c, d) {}
-    Linear3d() : Linear3d(0, 0, 0, 0) {}
-    double eval(vec3d pos) const {
-        return a + b * pos.x + c * pos.y + d * pos.z;
-    }
-
-    double a, b, c, d;
-    vec3d gradient;
-};
 
 std::array<Linear3d, 4> calculateTentsForTetrahedron(const ElectronOptics::Simulation::Data::Tetrahedron& tetrahedron);
 
@@ -46,10 +36,14 @@ void FEMSolver::solve() {
     for (size_t tetrahedronIndex = 0; tetrahedronIndex < tetrahedra.size(); tetrahedronIndex++) {
         auto& tetrahedron = tetrahedra.at(tetrahedronIndex);
         auto tentFunctions = calculateTentsForTetrahedron(tetrahedron);
+        tetrahedron.setTentFunctions(tentFunctions);
 
         double tetrahedronVolume = tetrahedron.getVolume();
 
         for(size_t i = 0; i < 4; i++) {
+            if (tetrahedron[i].potentialIsFixed) {
+                continue;
+            }
             for(size_t j = 0; j < 4; j++) {
                 // Could be optimized by matrix multiplication
                 double integralValue = glm::dot(tentFunctions[i].gradient, tentFunctions[j].gradient) * tetrahedronVolume;

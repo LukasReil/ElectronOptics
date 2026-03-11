@@ -21,7 +21,7 @@ def main():
     fig = plt.figure(figsize=(10, 6))
     ax = fig.add_subplot(projection='3d')
 
-    potential_map = potential_map[(potential_map[:, 1] < 1) & (potential_map[:, 1] > -1)]
+    potential_map = potential_map[(potential_map[:, 1] < 0.3) & (potential_map[:, 1] > -0.3)]
 
     ax.scatter(potential_map[:, 0], potential_map[:, 1], potential_map[:, 2], c=potential_map[:, 3], cmap='viridis')
     ax.set_aspect("equal")
