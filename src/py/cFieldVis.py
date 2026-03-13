@@ -16,14 +16,14 @@ mpl.rcParams['axes3d.mouserotationstyle'] = 'azel'
 
 
 def main():
-    potential_map = np.loadtxt("solvedPotentials.txt")
+    potential_map = np.loadtxt("solvedPotentials.txt")[::50, :]
 
     fig = plt.figure(figsize=(10, 6))
     ax = fig.add_subplot(projection='3d')
 
-    potential_map = potential_map[(potential_map[:, 1] < 0.3) & (potential_map[:, 1] > -0.3)]
+    potential_map = potential_map[(potential_map[:, 0] < 0.3) & (potential_map[:, 0] > -0.3)]
 
-    ax.scatter(potential_map[:, 0], potential_map[:, 1], potential_map[:, 2], c=potential_map[:, 3], cmap='viridis')
+    ax.scatter(potential_map[:, 2], potential_map[:, 0], potential_map[:, 1], c=potential_map[:, 3], cmap='viridis')
     ax.set_aspect("equal")
     fig.colorbar(ax.collections[0], label='Potential (V)')
     fig.show()
