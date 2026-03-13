@@ -37,10 +37,12 @@ namespace ElectronOptics::Simulation::Data {
 
         double getPotentialAtPosition(const vec3d& position) const;
         vec3d getElectricFieldAtPosition(const vec3d& position) const;
-
+        bool isPointInside(const vec3d& position) const;
+        void calculateElectricField();
     private:
         std::array<VertexRef, 4> m_vertices;
         std::array<Linear3d, 4> m_tentFunctions;
+        vec3d m_electricField;
     };
 
     class PotentialMesh {
@@ -48,6 +50,9 @@ namespace ElectronOptics::Simulation::Data {
         PotentialMesh(const std::vector<ElectrodeMesh>& electrodeMeshes, const ElectrodeMesh& boundingBoxMesh);
         size_t getVertexCount() const {
             return m_vertices.size();
+        }
+        std::vector<Tetrahedron>& getTetrahedraMutable() {
+            return m_tetrahedra;
         }
         const std::vector<Tetrahedron>& getTetrahedra() const {
             return m_tetrahedra;
@@ -57,6 +62,7 @@ namespace ElectronOptics::Simulation::Data {
         }
 
         void applyPotentialsToVertices(const std::vector<double>& potentials);
+        void fixElectricField();
     private:
         std::vector<Vertex> m_vertices;
         std::vector<Tetrahedron> m_tetrahedra;

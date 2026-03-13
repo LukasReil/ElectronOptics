@@ -5,11 +5,20 @@
 
 using namespace ElectronOptics::Simulation::Data;
 
-double Tetrahedron::getVolume() const {
+double getVolumeOfTetrahedronFromVertices(const vec3d& v0, const vec3d& v1, const vec3d& v2, const vec3d& v3) {
     return glm::dot(
-        glm::cross(m_vertices[1].vertex.position - m_vertices[0].vertex.position, m_vertices[2].vertex.position - m_vertices[0].vertex.position), 
-        m_vertices[3].vertex.position - m_vertices[0].vertex.position) 
+        glm::cross(v1 - v0, v2 - v0), 
+        v3 - v0) 
         / 6.0;
+}
+
+double Tetrahedron::getVolume() const {
+    return getVolumeOfTetrahedronFromVertices(
+        m_vertices[0].vertex.position,
+        m_vertices[1].vertex.position,
+        m_vertices[2].vertex.position,
+        m_vertices[3].vertex.position
+    );
 }
 
 double ElectronOptics::Simulation::Data::Tetrahedron::getPotentialAtPosition(const vec3d &position) const {
@@ -28,12 +37,52 @@ vec3d ElectronOptics::Simulation::Data::Tetrahedron::getElectricFieldAtPosition(
     return electricField;
 }
 
+bool ElectronOptics::Simulation::Data::Tetrahedron::isPointInside(const vec3d & position) const {
+    double totalVolume = getVolume();
+    double volume1 = getVolumeOfTetrahedronFromVertices(
+        m_vertices[0].vertex.position,
+        m_vertices[1].vertex.position,
+        m_vertices[2].vertex.position,
+        position
+    );
+    double volume2 = getVolumeOfTetrahedronFromVertices(
+        m_vertices[0].vertex.position,
+        m_vertices[1].vertex.position,
+        m_vertices[3].vertex.position,
+        position
+    );
+    double volume3 = getVolumeOfTetrahedronFromVertices(
+        m_vertices[0].vertex.position,
+        m_vertices[2].vertex.position,
+        m_vertices[3].vertex.position,
+        position
+    );
+    double volume4 = getVolumeOfTetrahedronFromVertices(
+        m_vertices[1].vertex.position,
+        m_vertices[2].vertex.position,
+        m_vertices[3].vertex.position,
+        position
+    );
+
+    double volumeSum = std::abs(volume1) + std::abs(volume2) + std::abs(volume3) + std::abs(volume4);
+    double volumeDifference = totalVolume - volumeSum;
+    return std::abs(volumeDifference / totalVolume) < 1e-10;
+}
+
+void ElectronOptics::Simulation::Data::Tetrahedron::calculateElectricField() {
+    m_electricField = vec3d(0.0, 0.0, 0.0);
+    for (size_t i = 0; i < 4; i++) {
+        m_electricField += m_tentFunctions[i].gradient * m_vertices[i].vertex.potential;
+    }
+}
+
 static void addElectrodeMeshToTetgenInput(const ElectrodeMesh& electrodeMesh, tetgenio& in, size_t& vertexIndexOffset, size_t& faceIndexOffset, int index) {
     for (size_t i = 0; i < electrodeMesh.getVertexCount(); i++) {
         auto vertex = electrodeMesh.getVertices().at(i);
         in.pointlist[(vertexIndexOffset + i) * 3] = vertex.x;
         in.pointlist[(vertexIndexOffset + i) * 3 + 1] = vertex.y;
         in.pointlist[(vertexIndexOffset + i) * 3 + 2] = vertex.z;
+        in.pointmtrlist[vertexIndexOffset + i] = electrodeMesh.getMeshSize();
     }
 
     for (size_t i = 0; i < electrodeMesh.getTriangleCount(); i++) {
@@ -76,14 +125,23 @@ PotentialMesh::PotentialMesh(const std::vector<ElectrodeMesh> &electrodeMeshes, 
     in.numberoffacets = triangleCount;
     in.facetlist = new tetgenio::facet[triangleCount];
     in.facetmarkerlist = new int[triangleCount];
+    in.numberofpointmtrs = 1;
+    in.pointmtrlist = new REAL[vertexCount * in.numberofpointmtrs];
+    in.numberofholes = electrodeMeshes.size();
+    in.holelist = new REAL[in.numberofholes * 3];
     size_t vertexIndex = 0;
     size_t faceIndex = 0;
     addElectrodeMeshToTetgenInput(boundingBoxMesh, in, vertexIndex, faceIndex, 1);
     for (size_t electrodeIndex = 0; electrodeIndex < electrodeMeshes.size(); electrodeIndex++) {
         addElectrodeMeshToTetgenInput(electrodeMeshes[electrodeIndex], in, vertexIndex, faceIndex, static_cast<int>(electrodeIndex) + 2);
     }
+    for (size_t i = 0; i < electrodeMeshes.size(); i++) {
+        in.holelist[i * 3 + 0] = electrodeMeshes[i].getPointInside().x;
+        in.holelist[i * 3 + 1] = electrodeMeshes[i].getPointInside().y;
+        in.holelist[i * 3 + 2] = electrodeMeshes[i].getPointInside().z;
+    }
 
-    char switches[] = "pq1.2a0.0005";
+    char switches[] = "pq1.2m";
     spdlog::info("Starting tetrahedralization...");
     tetrahedralize(switches, &in, &out);
     spdlog::info("Finished tetrahedralization: generated {} vertices and {} tetrahedra", out.numberofpoints, out.numberoftetrahedra);
@@ -139,4 +197,12 @@ void ElectronOptics::Simulation::Data::PotentialMesh::applyPotentialsToVertices(
             }
         }
     }
+}
+
+void ElectronOptics::Simulation::Data::PotentialMesh::fixElectricField() {
+
+    for (auto& tetrahedron : m_tetrahedra) {
+        tetrahedron.calculateElectricField();
+    }
+
 }

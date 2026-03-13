@@ -29,9 +29,10 @@ void FEMSolver::solve() {
     globalMatrix.resize(meshVertexCount, meshVertexCount);
 
     std::vector<Eigen::Triplet<double>> systemRelations;
+    systemRelations.reserve(meshVertexCount * 16);
 
 
-    auto tetrahedra = m_inputMesh.getTetrahedra();
+    auto& tetrahedra = m_inputMesh.getTetrahedraMutable();
 
     for (size_t tetrahedronIndex = 0; tetrahedronIndex < tetrahedra.size(); tetrahedronIndex++) {
         auto& tetrahedron = tetrahedra.at(tetrahedronIndex);
@@ -82,6 +83,8 @@ void FEMSolver::solve() {
 
 
     m_inputMesh.applyPotentialsToVertices(std::vector<double>(solvedPotentialVector.begin(), solvedPotentialVector.end()));
+
+    m_inputMesh.fixElectricField();
 }
 
 

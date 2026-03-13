@@ -6,7 +6,7 @@
 
 using namespace ElectronOptics::Simulation::Data;
 
-ElectrodeMesh ElectrodeMesh::loadFromObjFile(const std::string &filePath, double potential) {
+ElectrodeMesh ElectrodeMesh::loadFromObjFile(const std::string &filePath, double potential, double meshSize, const vec3d& pointInside) {
     
     std::ifstream file(filePath);
 
@@ -44,5 +44,5 @@ ElectrodeMesh ElectrodeMesh::loadFromObjFile(const std::string &filePath, double
         }
     }
     
-    return ElectrodeMesh(vertices, triangles, potential);
+    return ElectrodeMesh(vertices, triangles, potential, meshSize, pointInside);
 }
