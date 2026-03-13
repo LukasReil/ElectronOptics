@@ -6,9 +6,9 @@
 using namespace ElectronOptics::Simulation::Data;
 
 double getVolumeOfTetrahedronFromVertices(const vec3d& v0, const vec3d& v1, const vec3d& v2, const vec3d& v3) {
-    return glm::dot(
+    return std::abs(glm::dot(
         glm::cross(v1 - v0, v2 - v0), 
-        v3 - v0) 
+        v3 - v0))
         / 6.0;
 }
 
@@ -64,9 +64,9 @@ bool ElectronOptics::Simulation::Data::Tetrahedron::isPointInside(const vec3d & 
         position
     );
 
-    double volumeSum = std::abs(volume1) + std::abs(volume2) + std::abs(volume3) + std::abs(volume4);
-    double volumeDifference = totalVolume - volumeSum;
-    return std::abs(volumeDifference / totalVolume) < 1e-10;
+    double volumeSum = volume1 + volume2 + volume3 + volume4;
+    double volumeDifference = std::abs(totalVolume - volumeSum);
+    return volumeDifference / totalVolume < 1e-10;
 }
 
 void ElectronOptics::Simulation::Data::Tetrahedron::calculateElectricField() {
