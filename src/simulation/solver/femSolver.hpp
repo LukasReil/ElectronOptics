@@ -7,7 +7,7 @@ namespace ElectronOptics::Simulation::Solver {
     class FEMSolver {
     public:
         FEMSolver(Data::PotentialMesh& inputMesh);
-    
+        
         void solve();
     private:
         Data::PotentialMesh& m_inputMesh;

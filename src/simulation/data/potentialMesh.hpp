@@ -22,8 +22,7 @@ namespace ElectronOptics::Simulation::Data {
 
     class Tetrahedron {
     public:
-        Tetrahedron(const std::array<VertexRef, 4>& vertices)
-            : m_vertices(vertices) {}
+        Tetrahedron(const std::array<VertexRef, 4>& vertices);
             
         const Vertex& operator[](size_t i) const {
             return m_vertices[i].vertex;
@@ -31,10 +30,10 @@ namespace ElectronOptics::Simulation::Data {
         
         double getVolume() const;
 
-        void setTentFunctions(const std::array<Linear3d, 4>& tentFunctions) {
-            m_tentFunctions = tentFunctions;
+        std::array<Linear3d, 4> getTentFunctions() const {
+            return m_tentFunctions;
         }
-
+        
         double getPotentialAtPosition(const vec3d& position) const;
         vec3d getElectricFieldAtPosition(const vec3d& position) const;
         bool isPointInside(const vec3d& position) const;
@@ -63,7 +62,13 @@ namespace ElectronOptics::Simulation::Data {
 
         void applyPotentialsToVertices(const std::vector<double>& potentials);
         void fixElectricField();
+
+        void saveAsMesh(const std::string& filename) const;
+        static PotentialMesh loadFromMesh(const std::string& filename);
     private:
+        PotentialMesh(std::vector<Vertex>&& vertices, std::vector<Tetrahedron>&& tetrahedra)
+            : m_vertices(std::move(vertices)), m_tetrahedra(std::move(tetrahedra)) {}
+
         std::vector<Vertex> m_vertices;
         std::vector<Tetrahedron> m_tetrahedra;
     };

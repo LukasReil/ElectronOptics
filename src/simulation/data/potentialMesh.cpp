@@ -2,6 +2,7 @@
 
 #include <tetgen.h>
 #include <spdlog/spdlog.h>
+#include <Eigen/Dense>
 
 using namespace ElectronOptics::Simulation::Data;
 
@@ -12,7 +13,32 @@ double getVolumeOfTetrahedronFromVertices(const vec3d& v0, const vec3d& v1, cons
         / 6.0;
 }
 
-double Tetrahedron::getVolume() const {
+ElectronOptics::Simulation::Data::Tetrahedron::Tetrahedron(const std::array<VertexRef, 4> &vertices) 
+    : m_vertices(vertices) {
+    
+    Eigen::Matrix4d tetrahedronMatrix({
+        {1, m_vertices[0].vertex.position.x, m_vertices[0].vertex.position.y, m_vertices[0].vertex.position.z},
+        {1, m_vertices[1].vertex.position.x, m_vertices[1].vertex.position.y, m_vertices[1].vertex.position.z},
+        {1, m_vertices[2].vertex.position.x, m_vertices[2].vertex.position.y, m_vertices[2].vertex.position.z},
+        {1, m_vertices[3].vertex.position.x, m_vertices[3].vertex.position.y, m_vertices[3].vertex.position.z}
+    });
+    
+    // The above matrix should always be invertible, otherwise all points lie on one line
+    auto decomposed = tetrahedronMatrix.partialPivLu();
+
+
+    for(size_t i = 0; i < 4; i++) {
+        Eigen::Vector4d tentProperties{
+            {0.0, 0.0, 0.0, 0.0}
+        };
+        tentProperties[i] = 1;
+        Eigen::Vector4d solveResult = decomposed.solve(tentProperties);
+        m_tentFunctions.at(i) = Linear3d(solveResult[0], solveResult[1], solveResult[2], solveResult[3]);
+    }
+}
+
+double Tetrahedron::getVolume() const
+{
     return getVolumeOfTetrahedronFromVertices(
         m_vertices[0].vertex.position,
         m_vertices[1].vertex.position,
@@ -205,4 +231,76 @@ void ElectronOptics::Simulation::Data::PotentialMesh::fixElectricField() {
         tetrahedron.calculateElectricField();
     }
 
+}
+
+void ElectronOptics::Simulation::Data::PotentialMesh::saveAsMesh(const std::string &filename) const {
+
+    tetgenio out;
+    out.firstnumber = 0;
+    out.mesh_dim = 3;
+    out.numberofpoints = m_vertices.size();
+    out.pointlist = new REAL[out.numberofpoints * 3];
+    out.numberofpointattributes = 1;
+    out.pointattributelist = new REAL[out.numberofpoints * out.numberofpointattributes];
+    for (size_t i = 0; i < m_vertices.size(); i++) {
+        out.pointlist[i * 3] = m_vertices[i].position.x;
+        out.pointlist[i * 3 + 1] = m_vertices[i].position.y;
+        out.pointlist[i * 3 + 2] = m_vertices[i].position.z;
+        out.pointattributelist[i] = m_vertices[i].potential;
+    }
+
+    out.numberoftetrahedra = m_tetrahedra.size();
+    out.numberofcorners = 4;
+    out.tetrahedronlist = new int[out.numberoftetrahedra * 4];
+    for (size_t i = 0; i < m_tetrahedra.size(); i++) {
+        out.tetrahedronlist[i * 4] = m_tetrahedra[i][0].index;
+        out.tetrahedronlist[i * 4 + 1] = m_tetrahedra[i][1].index;
+        out.tetrahedronlist[i * 4 + 2] = m_tetrahedra[i][2].index;
+        out.tetrahedronlist[i * 4 + 3] = m_tetrahedra[i][3].index;
+    }
+
+    out.save_elements(filename.c_str());
+    out.save_nodes(filename.c_str());
+
+}
+
+PotentialMesh ElectronOptics::Simulation::Data::PotentialMesh::loadFromMesh(const std::string &filename) {
+
+    spdlog::info("Loading potential mesh from file: {}", filename);
+
+    tetgenio in;
+    char* fileBaseName = new char[filename.size() + 1];
+    std::strcpy(fileBaseName, filename.c_str());
+    in.load_node(fileBaseName);
+    in.load_tet(fileBaseName);
+    delete[] fileBaseName;
+
+    spdlog::info("Finished loading mesh: {} vertices and {} tetrahedra", in.numberofpoints, in.numberoftetrahedra);
+
+    std::vector<Vertex> vertices;
+    vertices.reserve(in.numberofpoints);
+    for (size_t i = 0; i < in.numberofpoints; i++) {
+        vertices.emplace_back(
+            vec3d(in.pointlist[i * 3], in.pointlist[i * 3 + 1], in.pointlist[i * 3 + 2]),
+            i,
+            in.pointattributelist[i],
+            true
+        );
+    }
+
+    std::vector<Tetrahedron> tetrahedra;
+    tetrahedra.reserve(in.numberoftetrahedra);
+    for (size_t i = 0; i < in.numberoftetrahedra; i++) {
+        std::array<VertexRef, 4> vertexRefs = {
+            VertexRef{vertices[in.tetrahedronlist[i * 4]]},
+            VertexRef{vertices[in.tetrahedronlist[i * 4 + 1]]},
+            VertexRef{vertices[in.tetrahedronlist[i * 4 + 2]]},
+            VertexRef{vertices[in.tetrahedronlist[i * 4 + 3]]}
+        };
+        tetrahedra.emplace_back(vertexRefs);
+    }
+
+    spdlog::info("Finished creating PotentialMesh from loaded data");
+
+    return PotentialMesh(std::move(vertices), std::move(tetrahedra));
 }

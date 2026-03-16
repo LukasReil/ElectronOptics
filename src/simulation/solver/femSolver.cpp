@@ -12,7 +12,7 @@ using Linear3d = ElectronOptics::Simulation::Data::Linear3d;
 
 
 
-std::array<Linear3d, 4> calculateTentsForTetrahedron(const ElectronOptics::Simulation::Data::Tetrahedron& tetrahedron);
+
 
 FEMSolver::FEMSolver(Data::PotentialMesh &inputMesh)
     : m_inputMesh(inputMesh) {
@@ -36,8 +36,7 @@ void FEMSolver::solve() {
 
     for (size_t tetrahedronIndex = 0; tetrahedronIndex < tetrahedra.size(); tetrahedronIndex++) {
         auto& tetrahedron = tetrahedra.at(tetrahedronIndex);
-        auto tentFunctions = calculateTentsForTetrahedron(tetrahedron);
-        tetrahedron.setTentFunctions(tentFunctions);
+        auto tentFunctions = tetrahedron.getTentFunctions();
 
         double tetrahedronVolume = tetrahedron.getVolume();
 
@@ -85,33 +84,4 @@ void FEMSolver::solve() {
     m_inputMesh.applyPotentialsToVertices(std::vector<double>(solvedPotentialVector.begin(), solvedPotentialVector.end()));
 
     m_inputMesh.fixElectricField();
-}
-
-
-
-std::array<Linear3d, 4> calculateTentsForTetrahedron(const ElectronOptics::Simulation::Data::Tetrahedron& tetrahedron) {
-
-    Eigen::Matrix4d tetrahedronMatrix({
-        {1, tetrahedron[0].position.x, tetrahedron[0].position.y, tetrahedron[0].position.z},
-        {1, tetrahedron[1].position.x, tetrahedron[1].position.y, tetrahedron[1].position.z},
-        {1, tetrahedron[2].position.x, tetrahedron[2].position.y, tetrahedron[2].position.z},
-        {1, tetrahedron[3].position.x, tetrahedron[3].position.y, tetrahedron[3].position.z}
-    });
-    
-    // The above matrix should always be invertible, otherwise all points lie on one line
-    auto decomposed = tetrahedronMatrix.partialPivLu();
-
-
-    std::array<Linear3d, 4> tentFunctions;
-
-    for(size_t i = 0; i < 4; i++) {
-        Eigen::Vector4d tentProperties{
-            {0.0, 0.0, 0.0, 0.0}
-        };
-        tentProperties[i] = 1;
-        Eigen::Vector4d solveResult = decomposed.solve(tentProperties);
-        tentFunctions.at(i) = Linear3d(solveResult[0], solveResult[1], solveResult[2], solveResult[3]);
-    }
-
-    return tentFunctions;
 }

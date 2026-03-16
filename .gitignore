@@ -1,4 +1,6 @@
 *.pkl
 *.txt
+*.ele
+*.node
 !CMakeLists.txt
 build

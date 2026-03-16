@@ -23,7 +23,7 @@ const double M = 9.10938356e-31; // Mass of an electron in kg
 const double V_Accel = 1000; // Acceleration voltage in volts
 const vec3d initialVelocity = electronSourceDirection * std::sqrt(-2 * Q * V_Accel / M); // Initial velocity of the electron
 
-const size_t NUM_ELECTRONS = 10; // Number of electrons to simulate
+const size_t NUM_ELECTRONS = 50; // Number of electrons to simulate
 
 int main() {
 
@@ -31,26 +31,32 @@ int main() {
     // auto leftElectrodeMesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/leftElectrode.obj", 1000, 0.02, {-0.5, 0, 0});
     // auto rightElectrodeMesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/rightElectrode.obj", -1000, 0.02, {0.5, 0, 0});
 
-    auto einzelBoundaryMesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/EinzelBoundary.obj", 0, 0.25, {0, 0, 0});
-    auto einzelElectrode1Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode1.obj", 0, 0.02, {0.9, 2, 0});
-    auto einzelElectrode2Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode2.obj", 1000, 0.02, {0.9, 0, 0});
-    auto einzelElectrode3Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode3.obj", 0, 0.02, {0.9, -2, 0});
+    // auto einzelBoundaryMesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/EinzelBoundary.obj", 0, 0.25, {0, 0, 0});
+    // auto einzelElectrode1Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode1.obj", 0, 0.02, {0.9, 2, 0});
+    // auto einzelElectrode2Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode2.obj", 1000, 0.02, {0.9, 0, 0});
+    // auto einzelElectrode3Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode3.obj", 0, 0.02, {0.9, -2, 0});
 
     // spdlog::info("Loaded meshes: bounding box with {} vertices and {} triangles, left electrode with {} vertices and {} triangles, right electrode with {} vertices and {} triangles",
     //     boundingBoxMesh.getVertexCount(), boundingBoxMesh.getTriangleCount(),
     //     leftElectrodeMesh.getVertexCount(), leftElectrodeMesh.getTriangleCount(),
     //     rightElectrodeMesh.getVertexCount(), rightElectrodeMesh.getTriangleCount());
 
-    std::vector<ElectronOptics::Simulation::Data::ElectrodeMesh> electrodeMeshes = {einzelElectrode1Mesh, einzelElectrode2Mesh, einzelElectrode3Mesh};
+    // std::vector<ElectronOptics::Simulation::Data::ElectrodeMesh> electrodeMeshes = {einzelElectrode1Mesh, einzelElectrode2Mesh, einzelElectrode3Mesh};
 
-    ElectronOptics::Simulation::Data::PotentialMesh potentialMesh(electrodeMeshes, einzelBoundaryMesh);
+    // ElectronOptics::Simulation::Data::PotentialMesh potentialMesh(electrodeMeshes, einzelBoundaryMesh);
 
-    spdlog::info("Finished tetrahedralization: potential mesh has {} vertices and {} tetrahedra", potentialMesh.getVertexCount(), potentialMesh.getTetrahedra().size());
+    // spdlog::info("Finished tetrahedralization: potential mesh has {} vertices and {} tetrahedra", potentialMesh.getVertexCount(), potentialMesh.getTetrahedra().size());
 
-    ElectronOptics::Simulation::Solver::FEMSolver femSolver(potentialMesh);
-    femSolver.solve();
+    // ElectronOptics::Simulation::Solver::FEMSolver femSolver(potentialMesh);
+    // femSolver.solve();
+    // spdlog::info("Finished solving for potentials");
 
-    spdlog::info("Finished solving for potentials");
+    // potentialMesh.saveAsMesh("potentialMesh.mesh");
+    // return 0;
+
+    auto potentialMesh = ElectronOptics::Simulation::Data::PotentialMesh::loadFromMesh("potentialMesh.mesh");
+    spdlog::info("Finished loading potential mesh from file: potential mesh has {} vertices and {} tetrahedra", potentialMesh.getVertexCount(), potentialMesh.getTetrahedra().size());
+
 
     auto file = std::ofstream("solvedPotentials.txt");
     auto vertices = potentialMesh.getVertices();
@@ -67,7 +73,7 @@ int main() {
     auto electricField = tetrahedron ? tetrahedron->getElectricFieldAtPosition({0, 0, 0}) : vec3d(0);
     spdlog::info("Measured E-field at (0, 0, 0): {}", glm::to_string(electricField));
 
-    auto tracer = ElectronOptics::Simulation::Tracer::Tracer(octtree, {3e-14, 10000, Q, M});
+    auto tracer = ElectronOptics::Simulation::Tracer::Tracer(octtree, {3e-14, 30000, Q, M});
 
     file = std::ofstream("electronPath.txt");
 
