@@ -12,6 +12,8 @@
 #include "simulation/data/potentialMeshOcttree.hpp"
 #include "simulation/tracer/tracer.hpp"
 
+#include "input/argumentParser.hpp"
+
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
 
@@ -25,7 +27,9 @@ const vec3d initialVelocity = electronSourceDirection * std::sqrt(-2 * Q * V_Acc
 
 const size_t NUM_ELECTRONS = 50; // Number of electrons to simulate
 
-int main() {
+int main(int argc, char** argv) {
+
+    ElectronOptics::Input::ArgumentParser argumentParser(argc, argv);
 
     // auto boundingBoxMesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/boundary.obj", 0, 0.25, {0, 0, 0});
     // auto leftElectrodeMesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/leftElectrode.obj", 1000, 0.02, {-0.5, 0, 0});
