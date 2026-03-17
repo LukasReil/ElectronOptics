@@ -31,30 +31,30 @@ int main() {
     // auto leftElectrodeMesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/leftElectrode.obj", 1000, 0.02, {-0.5, 0, 0});
     // auto rightElectrodeMesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/rightElectrode.obj", -1000, 0.02, {0.5, 0, 0});
 
-    // auto einzelBoundaryMesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/EinzelBoundary.obj", 0, 0.25, {0, 0, 0});
-    // auto einzelElectrode1Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode1.obj", 0, 0.02, {0.9, 2, 0});
-    // auto einzelElectrode2Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode2.obj", 1000, 0.02, {0.9, 0, 0});
-    // auto einzelElectrode3Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode3.obj", 0, 0.02, {0.9, -2, 0});
+    auto einzelBoundaryMesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/EinzelBoundary.obj", 0, 1, {0, 0, 0});
+    auto einzelElectrode1Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode1.obj", 0, 0.1, {0.9, 2, 0});
+    auto einzelElectrode2Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode2.obj", 1000, 0.1, {0.9, 0, 0});
+    auto einzelElectrode3Mesh = ElectronOptics::Simulation::Data::ElectrodeMesh::loadFromObjFile("assets/Electrode3.obj", 0, 0.1, {0.9, -2, 0});
 
     // spdlog::info("Loaded meshes: bounding box with {} vertices and {} triangles, left electrode with {} vertices and {} triangles, right electrode with {} vertices and {} triangles",
     //     boundingBoxMesh.getVertexCount(), boundingBoxMesh.getTriangleCount(),
     //     leftElectrodeMesh.getVertexCount(), leftElectrodeMesh.getTriangleCount(),
     //     rightElectrodeMesh.getVertexCount(), rightElectrodeMesh.getTriangleCount());
 
-    // std::vector<ElectronOptics::Simulation::Data::ElectrodeMesh> electrodeMeshes = {einzelElectrode1Mesh, einzelElectrode2Mesh, einzelElectrode3Mesh};
+    std::vector<ElectronOptics::Simulation::Data::ElectrodeMesh> electrodeMeshes = {einzelElectrode1Mesh, einzelElectrode2Mesh, einzelElectrode3Mesh};
 
-    // ElectronOptics::Simulation::Data::PotentialMesh potentialMesh(electrodeMeshes, einzelBoundaryMesh);
+    ElectronOptics::Simulation::Data::PotentialMesh potentialMesh(electrodeMeshes, einzelBoundaryMesh);
 
-    // spdlog::info("Finished tetrahedralization: potential mesh has {} vertices and {} tetrahedra", potentialMesh.getVertexCount(), potentialMesh.getTetrahedra().size());
+    spdlog::info("Finished tetrahedralization: potential mesh has {} vertices and {} tetrahedra", potentialMesh.getVertexCount(), potentialMesh.getTetrahedra().size());
 
-    // ElectronOptics::Simulation::Solver::FEMSolver femSolver(potentialMesh);
-    // femSolver.solve();
-    // spdlog::info("Finished solving for potentials");
+    ElectronOptics::Simulation::Solver::FEMSolver femSolver(potentialMesh);
+    femSolver.solve();
+    spdlog::info("Finished solving for potentials");
 
-    // potentialMesh.saveAsMesh("potentialMesh.mesh");
-    // return 0;
+    potentialMesh.saveAsMesh("potentialMesh.mesh");
+    return 0;
 
-    auto potentialMesh = ElectronOptics::Simulation::Data::PotentialMesh::loadFromMesh("potentialMesh.mesh");
+    // auto potentialMesh = ElectronOptics::Simulation::Data::PotentialMesh::loadFromMesh("potentialMesh.mesh");
     spdlog::info("Finished loading potential mesh from file: potential mesh has {} vertices and {} tetrahedra", potentialMesh.getVertexCount(), potentialMesh.getTetrahedra().size());
 
 
